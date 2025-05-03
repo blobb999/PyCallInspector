@@ -24,6 +24,10 @@ PyCallInspector is a cross-platform tool for monitoring and profiling Python scr
 - No additional pip packages required.
 
 ## Usage
+- In the bash, it works without any flaw
+- In the GUI it was hard to get it there because the stop process prohibits the callback
+- One step further and i dont get a callback so you need to do it manually. Do stop and one function in the Testscript and you get the callback.
+- Not nice but it works. If anyone...
 
 ### CLI Mode
 
