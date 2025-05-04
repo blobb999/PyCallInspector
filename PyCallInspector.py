@@ -12,8 +12,10 @@ import ast
 import tempfile
 import time
 
-# Global set to store called functions in monitor subprocess
+# Global sets and lists to store called functions and call hierarchy
 defined_functions = set()
+call_stack = []
+call_tree = []
 
 # --- Stop Flag Mechanism ---
 _main_thread_stop_requested = False
@@ -22,23 +24,38 @@ class StopMonitorRequested(Exception):
 
 # Profiling function
 def profile_func(frame, event, arg):
-    global _main_thread_stop_requested
+    global _main_thread_stop_requested, call_stack, call_tree
     if _main_thread_stop_requested:
         raise StopMonitorRequested()
-    if event != 'call':
+
+    if event == 'call':
+        try:
+            code = frame.f_code
+            filename = code.co_filename
+            if filename.endswith('.py') and os.path.isfile(filename):
+                normalized = filename.replace('\\', '/').lower()
+                if 'lib' not in normalized and 'site-packages' not in normalized:
+                    # Record unique definitions
+                    defined_functions.add((code.co_name, filename, code.co_firstlineno))
+                    # Record call hierarchy
+                    depth = len(call_stack)
+                    call_tree.append((code.co_name, filename, code.co_firstlineno, depth))
+                    call_stack.append((code.co_name, filename, code.co_firstlineno))
+        except Exception:
+            pass
+    elif event == 'return':
+        if call_stack:
+            try:
+                call_stack.pop()
+            except Exception:
+                pass
         return
-    try:
-        code = frame.f_code
-        filename = code.co_filename
-        if filename.endswith('.py') and os.path.isfile(filename):
-            normalized = filename.replace('\\', '/').lower()
-            if 'lib' not in normalized and 'site-packages' not in normalized:
-                defined_functions.add((code.co_name, filename, code.co_firstlineno))
-    except Exception:
-        pass
+    else:
+        return
+
     return profile_func
 
-# Print summary
+# Print summary including call hierarchy
 def print_summary():
     if not defined_functions:
         print("[Monitor] Keine Funktionen gesammelt.")
@@ -48,6 +65,12 @@ def print_summary():
     for funcname, path, line in sorted(defined_functions, key=lambda x: (x[1], x[2])):
         short = os.path.relpath(path, cwd)
         print(f" - {funcname}()  @ {short}:{line}")
+    if call_tree:
+        print("\n🗂 Aufrufhierarchie:")
+        for funcname, path, line, depth in call_tree:
+            short = os.path.relpath(path, cwd)
+            indent = '  ' * depth
+            print(f"{indent}- {funcname}()  @ {short}:{line}")
     sys.stdout.flush()
 
 # Signal handler (Unix)
@@ -74,7 +97,6 @@ def stop_file_watcher(stop_file_path):
 
 # Main wrapper to run target under profiler
 def wrapper_main(target_script):
-    # Ensure imports from script's directory
     script_dir = os.path.dirname(os.path.abspath(target_script))
     if script_dir and script_dir not in sys.path:
         sys.path.insert(0, script_dir)
@@ -83,7 +105,6 @@ def wrapper_main(target_script):
     except Exception:
         pass
 
-    # Setup Windows stop file watcher
     stop_file = None
     if sys.platform == 'win32':
         stop_file = os.environ.get('MONITOR_STOP_FILE')
@@ -184,22 +205,22 @@ class App(tk.Tk):
         self.path_var = tk.StringVar()
         ttk.Entry(frm, textvariable=self.path_var, width=80).grid(row=0, column=1, sticky='ew')
         ttk.Button(frm, text='Browse...', command=self.browse_file).grid(row=0, column=2, padx=5)
-        self.btn_start = ttk.Button(frm, text='Start', command=self.on_start)
-        self.btn_start.grid(row=1, column=1, pady=5, sticky='e')
-        self.btn_stop = ttk.Button(frm, text='Stop', command=self.on_stop, state='disabled')
-        self.btn_stop.grid(row=1, column=2, pady=5, sticky='w')
-        ttk.Button(frm, text='Extract Definitions', command=self.on_extract).grid(row=1, column=0, pady=5, sticky='w')
 
-        # Notebook for Monitor and Definitions
+        ttk.Button(frm, text='Extract Definitions', command=self.on_extract).grid(row=1, column=0, pady=5, sticky='w')
+        ttk.Button(frm, text='Show Hierarchy',    command=self.on_hierarchy).grid(row=1, column=1, pady=5, padx=5, sticky='w')
+        self.btn_start = ttk.Button(frm, text='Start', command=self.on_start)
+        self.btn_start.grid(row=1, column=2, pady=5, sticky='e')
+        self.btn_stop  = ttk.Button(frm, text='Stop',  command=self.on_stop,  state='disabled')
+        self.btn_stop.grid(row=1, column=3, pady=5, sticky='w')
+
+        # Notebook for Monitor, Definitions, and Call Hierarchy
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
 
         # Monitor tab
         mon_frame = ttk.Frame(self.notebook)
         self.notebook.add(mon_frame, text='Monitor')
-        # Vertical scrollbar for monitor
         vscroll_mon = ttk.Scrollbar(mon_frame, orient='vertical')
-        # Text widget
         self.text = tk.Text(mon_frame, wrap='none', yscrollcommand=vscroll_mon.set)
         vscroll_mon.config(command=self.text.yview)
         vscroll_mon.pack(side='right', fill='y')
@@ -207,14 +228,23 @@ class App(tk.Tk):
 
         # Definitions tab
         def_frame = ttk.Frame(self.notebook)
+        self.def_frame = def_frame
         self.notebook.add(def_frame, text='Definitions')
-        # Vertical scrollbar for definitions
         vscroll_def = ttk.Scrollbar(def_frame, orient='vertical')
-        # Definitions text widget
         self.def_text = tk.Text(def_frame, wrap='none', yscrollcommand=vscroll_def.set)
         vscroll_def.config(command=self.def_text.yview)
         vscroll_def.pack(side='right', fill='y')
         self.def_text.pack(side='left', fill='both', expand=True)
+
+        # Call Hierarchy tab
+        hier_frame = ttk.Frame(self.notebook)
+        self.hier_frame = hier_frame
+        self.notebook.add(hier_frame, text='Hierarchie')
+        vscroll_hier = ttk.Scrollbar(hier_frame, orient='vertical')
+        self.hier_text = tk.Text(hier_frame, wrap='none', yscrollcommand=vscroll_hier.set)
+        vscroll_hier.config(command=self.hier_text.yview)
+        vscroll_hier.pack(side='right', fill='y')
+        self.hier_text.pack(side='left', fill='both', expand=True)
 
         # Context menus for copy
         self.monitor_menu = tk.Menu(self, tearoff=0)
@@ -225,11 +255,13 @@ class App(tk.Tk):
         self.def_menu.add_command(label='Copy', command=lambda: self.copy_selection(self.def_text))
         self.def_text.bind('<Button-3>', lambda e: self.show_context_menu(e, self.def_menu))
 
+        self.hier_menu = tk.Menu(self, tearoff=0)
+        self.hier_menu.add_command(label='Copy', command=lambda: self.copy_selection(self.hier_text))
+        self.hier_text.bind('<Button-3>', lambda e: self.show_context_menu(e, self.hier_menu))
+
         # Sizegrip for resizing
         sizegrip = ttk.Sizegrip(self)
         sizegrip.pack(side='bottom', anchor='se')
-
-        self.def_frame = def_frame
 
     def show_context_menu(self, event, menu):
         menu.tk_popup(event.x_root, event.y_root)
@@ -285,9 +317,30 @@ class App(tk.Tk):
                     self.def_text.insert(tk.END, snippet + '\n\n')
             else:
                 self.def_text.insert(tk.END, 'No function or class definitions found.')
-            self.notebook.select(self.def_frame)
+            self.notebook.select(self.notebook.index(self.def_frame))
         except Exception as e:
             messagebox.showerror('Error', f'Failed to extract definitions: {e}')
+
+    def on_hierarchy(self):
+        content = self.text.get('1.0', tk.END).splitlines()
+        prefix = '🗂 Aufrufhierarchie:'
+        start_idx = None
+        for i, line in enumerate(content):
+            if line.strip().startswith(prefix):
+                start_idx = i + 1
+                break
+        self.hier_text.delete('1.0', tk.END)
+        if start_idx is None or start_idx >= len(content):
+            self.hier_text.insert(tk.END, 'Keine Aufrufhierarchie gefunden. Stelle sicher, dass das Monitoring beendet wurde und Hierarchie erzeugt wurde.')
+        else:
+            for line in content[start_idx:]:
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith('-') or line.startswith(' '):
+                    self.hier_text.insert(tk.END, line + '\n')
+                else:
+                    break
+        self.notebook.select(self.hier_frame)
 
     def on_closing(self):
         if self.process and self.process.poll() is None:
