@@ -62,12 +62,16 @@ def print_summary():
         return
     print("\n🧠 Aufgerufene Funktionen (aus eigenen .py-Dateien):")
     cwd = os.getcwd()
-    for funcname, path, line in sorted(defined_functions, key=lambda x: (x[1], x[2])):
+    # Filter out <genexpr> from the unique definitions list
+    filtered_defs = {item for item in defined_functions if item[0] != '<genexpr>'}
+    for funcname, path, line in sorted(filtered_defs, key=lambda x: (x[1], x[2])):
         short = os.path.relpath(path, cwd)
         print(f" - {funcname}()  @ {short}:{line}")
     if call_tree:
         print("\n🗂 Aufrufhierarchie:")
-        for funcname, path, line, depth in call_tree:
+        # Filter out <genexpr> from the call tree
+        filtered_tree = [item for item in call_tree if item[0] != '<genexpr>']
+        for funcname, path, line, depth in filtered_tree:
             short = os.path.relpath(path, cwd)
             indent = '  ' * depth
             print(f"{indent}- {funcname}()  @ {short}:{line}")
@@ -246,22 +250,26 @@ class App(tk.Tk):
         vscroll_hier.pack(side='right', fill='y')
         self.hier_text.pack(side='left', fill='both', expand=True)
 
-        # Context menus for copy
-        self.monitor_menu = tk.Menu(self, tearoff=0)
-        self.monitor_menu.add_command(label='Copy', command=lambda: self.copy_selection(self.text))
+        # Context menus for copy and select all
+        self.monitor_menu = self.create_context_menu(self.text)
         self.text.bind('<Button-3>', lambda e: self.show_context_menu(e, self.monitor_menu))
 
-        self.def_menu = tk.Menu(self, tearoff=0)
-        self.def_menu.add_command(label='Copy', command=lambda: self.copy_selection(self.def_text))
+        self.def_menu = self.create_context_menu(self.def_text)
         self.def_text.bind('<Button-3>', lambda e: self.show_context_menu(e, self.def_menu))
 
-        self.hier_menu = tk.Menu(self, tearoff=0)
-        self.hier_menu.add_command(label='Copy', command=lambda: self.copy_selection(self.hier_text))
+        self.hier_menu = self.create_context_menu(self.hier_text)
         self.hier_text.bind('<Button-3>', lambda e: self.show_context_menu(e, self.hier_menu))
 
         # Sizegrip for resizing
         sizegrip = ttk.Sizegrip(self)
         sizegrip.pack(side='bottom', anchor='se')
+
+    # Create context menu with Copy and Select All
+    def create_context_menu(self, widget):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label='Copy', command=lambda w=widget: self.copy_selection(w))
+        menu.add_command(label='Select All', command=lambda w=widget: self.select_all_text(w))
+        return menu
 
     def show_context_menu(self, event, menu):
         menu.tk_popup(event.x_root, event.y_root)
@@ -272,7 +280,14 @@ class App(tk.Tk):
             self.clipboard_clear()
             self.clipboard_append(text)
         except tk.TclError:
-            pass
+            pass # No selection
+
+    # Method to select all text in a widget
+    def select_all_text(self, widget):
+        widget.tag_add(tk.SEL, "1.0", tk.END)
+        widget.mark_set(tk.INSERT, "1.0")
+        widget.see(tk.INSERT)
+        return 'break' # Prevent default behavior
 
     def browse_file(self):
         path = filedialog.askopenfilename(filetypes=[('Python Files', '*.py')])
