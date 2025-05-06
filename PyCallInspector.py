@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8-sig -*-
+# -*- coding: utf-8-sig -*-
 import sys
 import os
 import runpy
@@ -75,7 +75,7 @@ def print_summary(results_file_path=None):
 
     # Ensure start_index is not after end_index if both are set
     if marker_a_index is not None and marker_b_index is not None and marker_a_index > marker_b_index:
-        print("[Monitor] Warnung: Marker B wurde vor Marker A gesetzt. Ignoriere Marker B.")
+        print("[Monitor] Warning: Marker B was set before Marker A. Ignoring Marker B.")
         end_index = len(call_tree)
 
     # Slice the call tree
@@ -96,16 +96,16 @@ def print_summary(results_file_path=None):
             results_list = list(filtered_defs_set)
             with open(results_file_path, 'w', encoding='utf-8') as f:
                 json.dump(results_list, f)
-            print(f"[Monitor] Gefilterte Definitionen gespeichert in {results_file_path}")
+            print(f"[Monitor] Filtered definitions saved to {results_file_path}")
         except Exception as e:
-            print(f"[Monitor] Fehler beim Speichern der gefilterten Definitionen: {e}")
+            print(f"[Monitor] Error saving filtered definitions: {e}")
     # --- End Save --- #
 
     # --- Print Summary to Console --- #
-    print("\n🧠 Aufgerufene Funktionen (aus eigenen .py-Dateien" + (
-" im markierten Bereich" if marker_a_index is not None or marker_b_index is not None else "") + "):")
+    print("\n🧠 Called Functions (from own .py files" + (
+" in marked section" if marker_a_index is not None or marker_b_index is not None else "") + "):")
     if not filtered_defs_set:
-        print("  (Keine oder nur <genexpr>)")
+        print("  (None or only <genexpr>)")
     else:
         # Use absolute paths for printing, convert to relative for display
         try:
@@ -122,14 +122,14 @@ def print_summary(results_file_path=None):
                     pass # Keep absolute path if relpath fails (e.g., different drive)
             print(f" - {funcname}()  @ {short}:{line}")
 
-    print("\n🗂 Aufrufhierarchie" + (" (zwischen Markern)" if marker_a_index is not None or marker_b_index is not None else "") + ":")
+    print("\n🗂 Call Hierarchy" + (" (between markers)" if marker_a_index is not None or marker_b_index is not None else "") + ":")
     if not active_call_tree:
-        print("  (Keine Aufrufe gesammelt" + (")" if marker_a_index is None else " im markierten Bereich)"))
+        print("  (No calls collected" + (")" if marker_a_index is None else " in marked section)"))
     else:
         # Filter out <genexpr> from the active call tree slice
         filtered_tree = [item for item in active_call_tree if item[0] != '<genexpr>']
         if not filtered_tree:
-             print("  (Nur <genexpr> Aufrufe im markierten Bereich)")
+             print("  (Only <genexpr> calls in marked section)")
         else:
             try:
                 cwd = os.getcwd()
@@ -153,7 +153,7 @@ def print_summary(results_file_path=None):
 def signal_handler(signum, frame):
     global _main_thread_stop_requested
     if not _main_thread_stop_requested:
-        print(f"[Monitor] Signal {signum} erhalten, Stop-Flag gesetzt.")
+        print(f"[Monitor] Signal {signum} received, stop flag set.")
         sys.stdout.flush()
         _main_thread_stop_requested = True
 
@@ -167,7 +167,7 @@ def file_watcher(file_path, callback):
             try:
                 os.remove(file_path)
             except OSError as e:
-                print(f"[Monitor] Fehler beim Löschen der Signaldatei {file_path}: {e}")
+                print(f"[Monitor] Error deleting signal file {file_path}: {e}")
             # No break here, watcher thread lives until monitor process ends
         time.sleep(0.2) # Check less frequently
 
@@ -175,19 +175,19 @@ def file_watcher(file_path, callback):
 def set_stop_flag():
     global _main_thread_stop_requested
     if not _main_thread_stop_requested:
-        print(f"[Monitor] Stop-Signal erkannt. Flag gesetzt.")
+        print(f"[Monitor] Stop signal detected. Flag set.")
         _main_thread_stop_requested = True
 
 def set_marker_a():
     global marker_a_index, call_tree
     marker_a_index = len(call_tree)
-    print(f"[Monitor] Marker A gesetzt bei Index {marker_a_index}")
+    print(f"[Monitor] Marker A set at index {marker_a_index}")
     sys.stdout.flush()
 
 def set_marker_b():
     global marker_b_index, call_tree
     marker_b_index = len(call_tree)
-    print(f"[Monitor] Marker B gesetzt bei Index {marker_b_index}")
+    print(f"[Monitor] Marker B set at index {marker_b_index}")
     sys.stdout.flush()
 
 # Main wrapper to run target under profiler
@@ -246,26 +246,26 @@ def wrapper_main(target_script):
     sys.setprofile(profile_func)
 
     try:
-        print(f"[Monitor] Starte {target_script_abs} mit CWD={os.getcwd()} args={sys.argv} via runpy")
+        print(f"[Monitor] Starting {target_script_abs} with CWD={os.getcwd()} args={sys.argv} via runpy")
         # Execute the target script
         runpy.run_path(target_script_abs, run_name='__main__')
-        print("[Monitor] Ziel-Skript normal beendet.")
+        print("[Monitor] Target script finished normally.")
     except StopMonitorRequested:
-        print("[Monitor] Stop-Anfrage empfangen, Unterbrechung erfolgreich.")
+        print("[Monitor] Stop request received, interruption successful.")
     except SystemExit as e:
         exit_code = getattr(e, 'code', 0)
         if exit_code != 0:
-            print(f"[Monitor] Ziel-Skript mit Code {exit_code} beendet.")
+            print(f"[Monitor] Target script finished with code {exit_code}.")
         else:
-            print("[Monitor] Ziel-Skript via sys.exit(0) beendet.")
+            print("[Monitor] Target script finished via sys.exit(0).")
     except Exception as e:
         import traceback
-        print(f"[Monitor] Fehler beim Ausführen von {target_script_abs}: {e}")
+        print(f"[Monitor] Error executing {target_script_abs}: {e}")
         traceback.print_exc() # Print full traceback for debugging
     finally:
         # Ensure profiling is stopped and summary is attempted
         sys.setprofile(None)
-        print("[Monitor] Profiling gestoppt (finally).")
+        print("[Monitor] Profiling stopped (finally).")
         # atexit handler (print_summary) will run after this
 
 # --- GUI Code --- #
@@ -295,7 +295,7 @@ def start_monitor(script_path, text_widget, start_button, stop_button, marker_bu
             # Set CWD for the subprocess? No, wrapper_main handles CWD change.
         )
     except Exception as e:
-        messagebox.showerror("Fehler beim Start", f"Monitor-Prozess konnte nicht gestartet werden:\n{e}")
+        messagebox.showerror("Error Starting", f"Monitor process could not be started:\n{e}")
         return None
 
     start_button.config(state='disabled')
@@ -311,7 +311,7 @@ def start_monitor(script_path, text_widget, start_button, stop_button, marker_bu
                     text_widget.see(tk.END) # Auto-scroll
         except Exception as e:
             if text_widget.winfo_exists():
-                 text_widget.insert(tk.END, f"\n[GUI] Fehler beim Lesen der Ausgabe: {e}\n")
+                 text_widget.insert(tk.END, f"\n[GUI] Error reading output: {e}\n")
         finally:
             if process.stdout:
                 process.stdout.close()
@@ -320,7 +320,7 @@ def start_monitor(script_path, text_widget, start_button, stop_button, marker_bu
                 start_button.config(state='normal')
                 stop_button.config(state='disabled')
                 marker_button.config(state='disabled') # Disable marker button on stop
-                text_widget.insert(tk.END, "\n[GUI] Monitor-Prozess beendet.\n")
+                text_widget.insert(tk.END, "\n[GUI] Monitor process finished.\n")
                 text_widget.see(tk.END)
             # Clean up signal files (results file is kept for on_extract)
             for f in [stop_file, marker_a_file, marker_b_file]:
@@ -334,21 +334,21 @@ def start_monitor(script_path, text_widget, start_button, stop_button, marker_bu
 # GUI: signal monitor subprocess to stop
 def signal_stop_monitor(process, stop_file):
     if process and process.poll() is None: # If process exists and is running
-        print(f"[GUI] Sende Stop-Signal via Datei: {stop_file}")
+        print(f"[GUI] Sending stop signal via file: {stop_file}")
         try:
             with open(stop_file, 'w') as f:
                 f.write('stop') # Write something to the file
         except Exception as e:
-             print(f"[GUI] Fehler beim Erstellen der Stop-Datei: {e}")
+             print(f"[GUI] Error creating stop file: {e}")
 
 # GUI: signal monitor subprocess to set a marker
 def signal_set_marker(marker_file):
-     print(f"[GUI] Sende Marker-Signal via Datei: {marker_file}")
+     print(f"[GUI] Sending marker signal via file: {marker_file}")
      try:
          with open(marker_file, 'w') as f:
              f.write('mark')
      except Exception as e:
-          print(f"[GUI] Fehler beim Erstellen der Marker-Datei: {e}")
+          print(f"[GUI] Error creating marker file: {e}")
 
 # Tkinter App class
 class App(tk.Tk):
@@ -431,7 +431,7 @@ class App(tk.Tk):
         # Call Hierarchy tab
         hier_frame = ttk.Frame(self.notebook)
         self.hier_frame = hier_frame # Keep reference for notebook.select
-        self.notebook.add(hier_frame, text='Hierarchie')
+        self.notebook.add(hier_frame, text='Hierarchy') # Changed from 'Hierarchie'
         vscroll_hier = ttk.Scrollbar(hier_frame, orient='vertical')
         self.hier_text = tk.Text(hier_frame, wrap='none', yscrollcommand=vscroll_hier.set)
         vscroll_hier.config(command=self.hier_text.yview)
@@ -488,7 +488,7 @@ class App(tk.Tk):
     def on_start(self):
         path = self.path_var.get()
         if not path or not os.path.isfile(path):
-            messagebox.showerror('Error', 'Ungültige oder nicht existierende Script-Datei.')
+            messagebox.showerror('Error', 'Invalid or non-existent script file.')
             return
 
         # Stop previous process if running
@@ -535,20 +535,20 @@ class App(tk.Tk):
 
     def on_set_marker(self):
         if not self.process or self.process.poll() is not None:
-            messagebox.showwarning("Marker", "Monitoring muss laufen, um Marker zu setzen.")
+            messagebox.showwarning("Marker", "Monitoring must be running to set markers.")
             return
 
         if self.marker_state == 'None':
             signal_set_marker(self.marker_a_file)
             self.marker_state = 'A_Set'
             self.btn_marker.config(text="Set Marker B")
-            self.text.insert(tk.END, "\n[GUI] Marker A Signal gesendet.\n")
+            self.text.insert(tk.END, "\n[GUI] Marker A signal sent.\n")
             self.text.see(tk.END)
         elif self.marker_state == 'A_Set':
             signal_set_marker(self.marker_b_file)
             self.marker_state = 'B_Set'
             self.btn_marker.config(text="Clear Markers")
-            self.text.insert(tk.END, "\n[GUI] Marker B Signal gesendet.\n")
+            self.text.insert(tk.END, "\n[GUI] Marker B signal sent.\n")
             self.text.see(tk.END)
         elif self.marker_state == 'B_Set':
             # Clear markers conceptually - remove signal files if they exist
@@ -566,14 +566,14 @@ class App(tk.Tk):
 
             self.marker_state = 'None'
             self.btn_marker.config(text="Set Marker A")
-            self.text.insert(tk.END, "\n[GUI] Marker gelöscht (lokaler Status & Ergebnisdatei zurückgesetzt).\n")
+            self.text.insert(tk.END, "\n[GUI] Markers cleared (local status & results file reset).\n")
             self.text.see(tk.END)
 
     def on_extract(self):
         # Use the path from the last monitoring run if available, otherwise current path
         path = self.last_monitored_script if self.last_monitored_script else self.path_var.get()
         if not path or not os.path.isfile(path):
-            messagebox.showerror('Error', 'Ungültige oder nicht existierende Script-Datei.')
+            messagebox.showerror('Error', 'Invalid or non-existent script file.')
             return
 
         called_funcs_filter = None
@@ -586,15 +586,15 @@ class App(tk.Tk):
                 # Use absolute paths for comparison
                 current_script_abs = os.path.abspath(path)
                 called_funcs_filter = {(name, line) for name, pth, line in loaded_list if os.path.abspath(pth) == current_script_abs}
-                print(f"[GUI] Filter für Definitionen geladen: {len(called_funcs_filter)} Funktionen für {current_script_abs}") # Debug
+                print(f"[GUI] Filter for definitions loaded: {len(called_funcs_filter)} functions for {current_script_abs}") # Debug
         except FileNotFoundError:
             pass # No results file, show all definitions
         except json.JSONDecodeError as e:
-            print(f"[GUI] Fehler beim Lesen der Ergebnisdatei {self.results_file}: {e}")
-            messagebox.showwarning("Filterfehler", f"Ergebnisdatei konnte nicht gelesen werden ({e}). Zeige alle Definitionen.")
+            print(f"[GUI] Error reading results file {self.results_file}: {e}")
+            messagebox.showwarning("Filter Error", f"Results file could not be read ({e}). Showing all definitions.")
         except Exception as e:
-            print(f"[GUI] Unerwarteter Fehler beim Laden des Filters: {e}")
-            messagebox.showwarning("Filterfehler", f"Unerwarteter Fehler beim Laden des Filters ({e}). Zeige alle Definitionen.")
+            print(f"[GUI] Unexpected error loading filter: {e}")
+            messagebox.showwarning("Filter Error", f"Unexpected error loading filter ({e}). Showing all definitions.")
 
         try:
             # Attempt to detect encoding, fall back to utf-8
@@ -637,28 +637,28 @@ class App(tk.Tk):
             if defs_to_show:
                 defs_to_show.sort(key=lambda item: item[1]) # Sort by line number
                 filter_active = called_funcs_filter is not None
-                self.def_text.insert(tk.END, f"--- {len(defs_to_show)} Definitionen gefunden" + (" (gefiltert nach Marker-Aufrufen)" if filter_active else "") + " ---\n\n")
+                self.def_text.insert(tk.END, f"--- {len(defs_to_show)} definitions found" + (" (filtered by marker calls)" if filter_active else "") + " ---\n\n")
                 for name, lineno, snippet in defs_to_show:
                     self.def_text.insert(tk.END, f"# --- Definition: {name} (Line: {lineno}) ---\n")
                     self.def_text.insert(tk.END, snippet + '\n\n')
             else:
                 if called_funcs_filter is not None:
-                    self.def_text.insert(tk.END, 'Keine der im markierten Bereich aufgerufenen Funktionen/Klassen gefunden.')
+                    self.def_text.insert(tk.END, 'None of the functions/classes called in the marked section were found.')
                 else:
-                    self.def_text.insert(tk.END, 'Keine Funktions- oder Klassendefinitionen gefunden.')
+                    self.def_text.insert(tk.END, 'No function or class definitions found.')
 
             self.notebook.select(self.def_frame) # Switch to definitions tab
         except Exception as e:
-            messagebox.showerror('Fehler beim Extrahieren', f'Definitionen konnten nicht extrahiert werden:\n{e}')
+            messagebox.showerror('Error During Extraction', f'Definitions could not be extracted:\n{e}')
 
     def on_hierarchy(self):
         try:
             content = self.text.get('1.0', tk.END).splitlines()
         except tk.TclError:
-             messagebox.showerror("Fehler", "Monitor-Ausgabe konnte nicht gelesen werden.")
+             messagebox.showerror("Error", "Monitor output could not be read.")
              return
 
-        prefix = '🗂 Aufrufhierarchie'
+        prefix = '🗂 Call Hierarchy'
         start_idx = -1
         for i, line in enumerate(content):
             if line.strip().startswith(prefix):
@@ -667,7 +667,7 @@ class App(tk.Tk):
 
         self.hier_text.delete('1.0', tk.END)
         if start_idx == -1 or start_idx >= len(content):
-            self.hier_text.insert(tk.END, 'Keine Aufrufhierarchie in der Monitor-Ausgabe gefunden.\nStelle sicher, dass das Monitoring beendet wurde.')
+            self.hier_text.insert(tk.END, 'No call hierarchy found in monitor output.\nEnsure monitoring has finished.')
         else:
             found_hierarchy = False
             for line in content[start_idx:]:
@@ -681,7 +681,7 @@ class App(tk.Tk):
                 elif found_hierarchy and line.strip():
                     break
             if not found_hierarchy:
-                 self.hier_text.insert(tk.END, 'Keine Aufrufhierarchie-Zeilen nach dem Header gefunden.')
+                 self.hier_text.insert(tk.END, 'No call hierarchy lines found after the header.')
 
         self.notebook.select(self.hier_frame) # Switch to hierarchy tab
 
