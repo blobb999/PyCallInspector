@@ -7,7 +7,7 @@ PyCallInspector is a cross-platform tool for monitoring and profiling Python scr
 ---
 
 **Why this is perfect for your workflow:**  
-When working within a large codebase, you need to pinpoint errors in seconds, extract only the minimal context, and paste it directly into an AI for debugging. With its marker-based filtering, flat function listing, and on-the-fly definition extraction, PyCallInspector delivers precisely that package—zero noise, zero complex configuration, and zero external dependencies.
+When working within a large codebase, you need to pinpoint errors in seconds, extract only the minimal context and paste it directly into an AI for debugging. With marker-based filtering, a flat function list and on-the-fly definition extraction, PyCallInspector gives you exactly what you need — no noise, no complex setup and no extra packages.
 
 
 ## Features
