@@ -4,6 +4,12 @@
 
 PyCallInspector is a cross-platform tool for monitoring and profiling Python scripts. It captures and lists all function calls in your own `.py` files (excluding standard library and site-packages), providing a clear summary at the end of execution or upon manual stop.
 
+---
+
+**Why this is perfect for your workflow:**  
+When working within a large codebase, you need to pinpoint errors in seconds, extract only the minimal context, and paste it directly into an AI for debugging. With its marker-based filtering, flat function listing, and on-the-fly definition extraction, PyCallInspector delivers precisely that package—zero noise, zero complex configuration, and zero external dependencies.
+
+
 ## Features
 
 - **Function Call Tracing**
